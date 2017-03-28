@@ -8,22 +8,17 @@ var _phantom = require('./phantom');
 
 var _phantom2 = _interopRequireDefault(_phantom);
 
-var _pages=require('./pages');
-
-var _pages2=_interopRequireDefault(_pages);
-
-
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 /**
  * Page class that proxies everything to phantomjs
  */
-class Page {
+class Pages {
 
-    constructor(phantom, pageId) {
-        this.target = 'page$' + pageId;
+    constructor(phantom, pageId,pagesId) {
+        this.target = pageId;
         this.phantom = phantom;
-        this.pagesMap= new Map();
+        this.pagesId=pagesId[0];
     }
 
     /**
@@ -39,6 +34,7 @@ class Page {
         let mustRunOnPhantom;
         let callback;
         let args;
+        let ev=event+'_'+this.pagesId;
 
         if (typeof runOnPhantom === 'function') {
             args = [].slice.call(arguments, 2);
@@ -49,8 +45,7 @@ class Page {
             mustRunOnPhantom = runOnPhantom;
             callback = mustRunOnPhantom ? listener : listener.bind(this);
         }
-
-        return this.phantom.on(event, this.target, mustRunOnPhantom, callback, args);
+        return this.phantom.onEvent(ev,'addEventPages',this.target, mustRunOnPhantom, callback, args);
     }
 
     /**
@@ -74,10 +69,10 @@ class Page {
      * Invokes a method
      */
     invokeMethod() {
-        return this.phantom.execute(this.target, 'invokeMethod', [].slice.call(arguments));
+        // console.log("%%%%%%%%%%%%%%%%");
+        // console.log([].slice.call(arguments));
+        return this.phantom.execute(this.target, 'invokeMethodPages', [this.pagesId].concat([].slice.call(arguments)));
     }
-
-
 
     /**
      * Defines a method
@@ -90,7 +85,7 @@ class Page {
      * Gets or sets a property
      */
     property() {
-        return this.phantom.execute(this.target, 'property', [].slice.call(arguments));
+        return this.phantom.execute(this.target, 'propertyPages', [this.pagesId].concat([].slice.call(arguments)));
     }
 
     /**
@@ -99,30 +94,23 @@ class Page {
     setting() {
         return this.phantom.execute(this.target, 'setting', [].slice.call(arguments));
     }
-    pages(){
-        var pageIndex=[].slice.call(arguments)[0];
-        if(!this.pagesMap.get(pageIndex)){
-            this.pagesMap.set(pageIndex,new _pages2.default(this.phantom,this.target,[].slice.call(arguments)));
-        }
-        return this.pagesMap.get(pageIndex);
-    }
 }
 
-exports.default = Page;
-const asyncMethods = ['includeJs', 'open'];
+exports.default = Pages;
+const asyncMethods = ['includeJs'];
 
 const methods = ['addCookie', 'clearCookies', 'close', 'deleteCookie', 'evaluate', 'evaluateAsync', 'evaluateJavaScript', 'injectJs', 'openUrl', 'reload', 'render', 'renderBase64', 'sendEvent', 'setContent', 'setProxy', 'stop', 'switchToFrame', 'switchToMainFrame', 'goBack', 'uploadFile'];
 
 asyncMethods.forEach(method => {
     // $FlowFixMe: no way to provide dynamic functions
-    Page.prototype[method] = function () {
+    Pages.prototype[method] = function () {
         return this.invokeAsyncMethod.apply(this, [method].concat([].slice.call(arguments)));
     };
 });
 
 methods.forEach(method => {
     // $FlowFixMe: no way to provide dynamic functions
-    Page.prototype[method] = function () {
+    Pages.prototype[method] = function () {
         console.log("^^^^^^^^^^^^^^^^^^^^");
         console.log([].slice.call(arguments));
         return this.invokeMethod.apply(this, [method].concat([].slice.call(arguments)));

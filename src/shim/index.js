@@ -1,39 +1,58 @@
-import webpage from 'webpage';
-import system from 'system';
-import './function_bind_polyfill.js';
+'use strict';
+
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+
+var _webpage = require('webpage');
+
+var _webpage2 = _interopRequireDefault(_webpage);
+
+var _system = require('system');
+
+var _system2 = _interopRequireDefault(_system);
+
+require('./function_bind_polyfill.js');
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 /**
  * Stores all all pages and single instance of phantom
  */
-const objectSpace = {
-    phantom: phantom,
+var objectSpace = {
+    phantom: phantom
 };
 
-const events = {};
-const NOOP = 'NOOP';
+var events = {};
+var NOOP = 'NOOP';
 
 /**
  * All commands that have a custom implementation
  */
-const commands = {
-    createPage: command => {
-        let page = webpage.create();
+var commands = {
+    createPage: function createPage(command) {
+        var page = _webpage2.default.create();
         objectSpace['page$' + command.id] = page;
 
-        page.onClosing = () => delete objectSpace['page$' + command.id];
+        page.onClosing = function () {
+            console.log("Closing");
+            return delete objectSpace['page$' + command.id];
+        };
 
-        command.response = {pageId: command.id};
+        page.onPageCreate=function(){
+            console.log("Page created");
+        }
+
+        command.response = { pageId: command.id };
         completeCommand(command);
     },
-    property: command => {
+    property: function property(command) {
         if (command.params.length > 1) {
             if (typeof command.params[1] === 'function') {
                 // If the second parameter is a function then we want to proxy and pass parameters too
-                let callback = command.params[1];
-                let args = command.params.slice(2);
+                var callback = command.params[1];
+                var args = command.params.slice(2);
                 syncOutObjects(args);
-                objectSpace[command.target][command.params[0]] = function() {
-                    let params = [].slice.call(arguments).concat(args);
+                objectSpace[command.target][command.params[0]] = function () {
+                    var params = [].slice.call(arguments).concat(args);
                     return callback.apply(objectSpace[command.target], params);
                 };
             } else {
@@ -46,7 +65,30 @@ const commands = {
 
         completeCommand(command);
     },
-    setting: command => {
+    propertyPages: function propertyPages(command) {
+        console.log(JSON.stringify(command));
+        var target=objectSpace[command.target];
+        if (command.params.length > 2) {
+            if (typeof command.params[2] === 'function') {
+                // If the second parameter is a function then we want to proxy and pass parameters too
+                var callback = command.params[2];
+                var args = command.params.slice(3);
+                syncOutObjects(args);
+                target.pages[command.params[0]][command.params[1]] = function () {
+                    var params = [].slice.call(arguments).concat(args);
+                    return callback.apply(target.pages[command.params[0]], params);
+                };
+            } else {
+                // If the second parameter is not a function then just assign
+                target.pages[command.params[0]][command.params[1]] = command.params[2];
+            }
+        } else {
+            command.response = target.pages[command.params[0]][command.params[1]];
+        }
+
+        completeCommand(command);
+    },
+    setting: function setting(command) {
         if (command.params.length === 2) {
             objectSpace[command.target].settings[command.params[0]] = command.params[1];
         } else {
@@ -56,7 +98,7 @@ const commands = {
         completeCommand(command);
     },
 
-    windowProperty: command => {
+    windowProperty: function windowProperty(command) {
         if (command.params.length === 2) {
             window[command.params[0]] = command.params[1];
         } else {
@@ -65,15 +107,24 @@ const commands = {
         completeCommand(command);
     },
 
-    addEvent: command => {
-        let type = getTargetType(command.target);
+    addEvent: function addEvent(command) {
+        console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!");
+        console.log(JSON.stringify(command));
+        // console.log(command.params[0].type);
+        // console.log(command.params[0].event);
+
+        var type = getTargetType(command.target);
+        console.log(type);
 
         if (isEventSupported(type, command.params[0].type)) {
-            let listeners = getEventListeners(command.target, command.params[0].type);
+            var listeners = getEventListeners(command.target, command.params[0].type);
+            console.log("~~~~~~~~~~~~~~~~~~~")
+            console.log(JSON.stringify(listeners));
+            // console.log(typeof command.params[0].event === 'function');
 
             if (typeof command.params[0].event === 'function') {
-                listeners.otherListeners.push(function() {
-                    let params = [].slice.call(arguments).concat(command.params[0].args);
+                listeners.otherListeners.push(function () {
+                    var params = [].slice.call(arguments).concat(command.params[0].args);
                     return command.params[0].event.apply(objectSpace[command.target], params);
                 });
             }
@@ -81,9 +132,38 @@ const commands = {
 
         completeCommand(command);
     },
+    addEventPages: function addEventPages(command) {
+        console.log("#######################");
+        console.log(JSON.stringify(command));
+        console.log(command.params[0].event);
 
-    removeEvent: function(command) {
-        let type = getTargetType(command.target);
+        var type = getTargetType(command.target);
+        console.log(type);
+        var eventGroup=command.params[0].type.split('_');
+        var eventType=eventGroup[0];
+        var pageId=eventGroup[1];
+        console.log(eventType);
+        console.log(pageId);
+
+        if (isEventSupported(type, eventType)) {
+            var listeners = getEventListenersPages(command.target, eventType,pageId);
+            // console.log("(((((((((((((((((");
+            // console.log(JSON.stringify(listeners));
+            // console.log(typeof command.params[0].event === 'function');
+
+            if (typeof command.params[0].event === 'function') {
+                listeners.otherListeners.push(function () {
+                    var params = [].slice.call(arguments).concat(command.params[0].args);
+                    return command.params[0].event.apply(objectSpace[command.target].pages[0], params);
+                });
+            }
+        }
+
+        completeCommand(command);
+    },
+
+    removeEvent: function removeEvent(command) {
+        var type = getTargetType(command.target);
 
         if (isEventSupported(type, command.params[0].type)) {
             events[command.target][command.params[0].type] = null;
@@ -93,50 +173,73 @@ const commands = {
         completeCommand(command);
     },
 
-    noop: command => completeCommand(command),
+    noop: function noop(command) {
+        return completeCommand(command);
+    },
 
-    invokeAsyncMethod: function(command) {
-        let target = objectSpace[command.target];
-        target[command.params[0]].apply(target, command.params.slice(1).concat(result => {
+    invokeAsyncMethod: function invokeAsyncMethod(command) {
+        var target = objectSpace[command.target];
+        target[command.params[0]].apply(target, command.params.slice(1).concat(function (result) {
             command.response = result;
             completeCommand(command);
         }));
     },
 
-    invokeMethod: function(command) {
-        let target = objectSpace[command.target];
-        let method = target[command.params[0]];
+    invokeMethod: function invokeMethod(command) {
+        var target = objectSpace[command.target];
+        console.log("&&&&&&&&&&&&&&&&&&&&&&&&&")
+        console.log(JSON.stringify(command));
+        console.log(command.params.slice(1));
+        console.log(command.params[0]);
+        console.log(target);
+        var method = target[command.params[0]];
+        console.log(method);
+        //console.log(JSON.stringify(target));
         command.response = method.apply(target, command.params.slice(1));
         completeCommand(command);
     },
-
-    defineMethod: function(command) {
-        let target = objectSpace[command.target];
-        target[command.params[0]] = command.params[1];
+    invokeMethodPages:function invokeMethodPages(command){
+        var target=objectSpace[command.target];
+        // console.log("&*&*&*&***&*****&");
+        // console.log(target.pages[0]);
+        console.log("%%%%%%%%%%%%%%#W$$$$$$$$$")
+        console.log(JSON.stringify(command));
+        console.log(command.params.slice(2))
+        console.log(command.params[0]);
+        console.log(target);
+        var method=target[command.params[1]];
+        console.log(method);
+        console.log(JSON.stringify(target.pages[command.params[0]]));
+        command.response=method.apply(target.pages[command.params[0]],command.params.slice(2));
+        console.log(command);
         completeCommand(command);
     },
+
+
+    defineMethod: function defineMethod(command) {
+        var target = objectSpace[command.target];
+        target[command.params[0]] = command.params[1];
+        completeCommand(command);
+    }
 };
 
 /**
  * Calls readLine() and blocks until a message is ready
  */
 function read() {
-    let line = system.stdin.readLine();
+    var line = _system2.default.stdin.readLine();
     if (line) {
         if (line === NOOP) {
-            system.stdout.writeLine('>' + NOOP);
+            _system2.default.stdout.writeLine('>' + NOOP);
             setTimeout(read, 100);
             return;
         }
-        let command = JSON.parse(line, function(key, value) {
-            if (value
-                && typeof value === 'string'
-                && value.substr(0, 8) === 'function'
-                && value.indexOf('[native code]') === -1) {
-                const startBody = value.indexOf('{') + 1;
-                const endBody = value.lastIndexOf('}');
-                const startArgs = value.indexOf('(') + 1;
-                const endArgs = value.indexOf(')');
+        var command = JSON.parse(line, function (key, value) {
+            if (value && typeof value === 'string' && value.substr(0, 8) === 'function' && value.indexOf('[native code]') === -1) {
+                var startBody = value.indexOf('{') + 1;
+                var endBody = value.lastIndexOf('}');
+                var startArgs = value.indexOf('(') + 1;
+                var endArgs = value.indexOf(')');
 
                 // eslint-disable-next-line no-new-func
                 return new Function(value.substring(startArgs, endArgs), value.substring(startBody, endBody));
@@ -163,14 +266,14 @@ function read() {
  * @param object
  */
 function transform(object) {
-    for (let key in object) {
+    for (var key in object) {
         if (object.hasOwnProperty(key)) {
-            let child = object[key];
+            var child = object[key];
             if (child === null || child === undefined) {
                 return;
             } else if (child.transform === true) {
                 object[key] = objectSpace[child.parent][child.method](child.target);
-            } else if (typeof child === 'object') {
+            } else if ((typeof child === 'undefined' ? 'undefined' : _typeof(child)) === 'object') {
                 transform(child);
             }
         }
@@ -183,7 +286,7 @@ function transform(object) {
  * @param objects
  */
 function syncOutObjects(objects) {
-    objects.forEach(param => {
+    objects.forEach(function (param) {
         if (param.target !== undefined) {
             objectSpace[param.target] = param;
         }
@@ -198,7 +301,7 @@ function executeCommand(command) {
     if (commands[command.name]) {
         return commands[command.name](command);
     }
-    throw new Error(`'${command.name}' isn't a command.`);
+    throw new Error('\'' + command.name + '\' isn\'t a command.');
 }
 
 /**
@@ -226,13 +329,30 @@ function getEventListeners(target, eventName) {
     if (!events[target][eventName]) {
         events[target][eventName] = {
             outsideListener: getOutsideListener(eventName, target),
-            otherListeners: [],
+            otherListeners: []
         };
 
         objectSpace[target][eventName] = triggerEvent.bind(null, target, eventName);
     }
 
     return events[target][eventName];
+}
+function getEventListenersPages(target, eventName,page_id) {
+    var pageId=target+'_'+pageId;
+    if (!events[pageId]) {
+        events[pageId] = {};
+    }
+
+    if (!events[pageId][eventName]) {
+        events[pageId][eventName] = {
+            outsideListener: getOutsideListener(eventName, pageId),
+            otherListeners: []
+        };
+
+        objectSpace[target].pages[page_id][eventName] = triggerEventPages.bind(null, target, eventName,pageId,page_id);
+    }
+
+    return events[pageId][eventName];
 }
 
 /**
@@ -252,11 +372,20 @@ function getTargetType(target) {
  * @param eventName
  */
 function triggerEvent(target, eventName) {
-    let args = [].slice.call(arguments, 2);
-    let listeners = events[target][eventName];
+    var args = [].slice.call(arguments, 2);
+    var listeners = events[target][eventName];
     listeners.outsideListener.apply(null, args);
-    listeners.otherListeners.forEach(function(listener) {
+    listeners.otherListeners.forEach(function (listener) {
         listener.apply(objectSpace[target], args);
+    });
+}
+
+function triggerEventPages(target, eventName,pageId,page_id) {
+    var args = [].slice.call(arguments, 2);
+    var listeners = events[pageId][eventName];
+    listeners.outsideListener.apply(null, args);
+    listeners.otherListeners.forEach(function (listener) {
+        listener.apply(objectSpace[target].pages[page_id], args);
     });
 }
 
@@ -268,9 +397,9 @@ function triggerEvent(target, eventName) {
  * @returns {Function}
  */
 function getOutsideListener(eventName, targetId) {
-    return function() {
-        const args = [].slice.call(arguments, 0);
-        system.stdout.writeLine('<event>' + JSON.stringify({target: targetId, type: eventName, args}));
+    return function () {
+        var args = [].slice.call(arguments, 0);
+        _system2.default.stdout.writeLine('<event>' + JSON.stringify({ target: targetId, type: eventName, args: args }));
     };
 }
 
@@ -279,7 +408,7 @@ function getOutsideListener(eventName, targetId) {
  * @param command
  */
 function completeCommand(command) {
-    system.stdout.writeLine('>' + JSON.stringify(command));
+    _system2.default.stdout.writeLine('>' + JSON.stringify(command));
 }
 
 read();

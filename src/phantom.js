@@ -1,18 +1,48 @@
-// @flow
+'use strict';
 
-import phantomjs from 'phantomjs-prebuilt';
-import {spawn} from 'child_process';
-import os from 'os';
-import path from 'path';
-import split from 'split';
-import winston from 'winston';
-import EventEmitter from 'events';
-import Page from './page';
-import Command from './command';
-import OutObject from './out_object';
+Object.defineProperty(exports, "__esModule", {
+    value: true
+});
 
+var _phantomjsPrebuilt = require('phantomjs-prebuilt');
 
-type Response = {pageId: string}
+var _phantomjsPrebuilt2 = _interopRequireDefault(_phantomjsPrebuilt);
+
+var _child_process = require('child_process');
+
+var _os = require('os');
+
+var _os2 = _interopRequireDefault(_os);
+
+var _path = require('path');
+
+var _path2 = _interopRequireDefault(_path);
+
+var _split = require('split');
+
+var _split2 = _interopRequireDefault(_split);
+
+var _winston = require('winston');
+
+var _winston2 = _interopRequireDefault(_winston);
+
+var _events = require('events');
+
+var _events2 = _interopRequireDefault(_events);
+
+var _page = require('./page');
+
+var _page2 = _interopRequireDefault(_page);
+
+var _command = require('./command');
+
+var _command2 = _interopRequireDefault(_command);
+
+var _out_object = require('./out_object');
+
+var _out_object2 = _interopRequireDefault(_out_object);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 const defaultLogLevel = process.env.DEBUG === 'true' ? 'debug' : 'info';
 const NOOP = 'NOOP';
@@ -21,13 +51,11 @@ const NOOP = 'NOOP';
  * Creates a logger using winston
  */
 function createLogger() {
-    return new winston.Logger({
-        transports: [
-            new winston.transports.Console({
-                level: defaultLogLevel,
-                colorize: true,
-            }),
-        ],
+    return new _winston2.default.Logger({
+        transports: [new _winston2.default.transports.Console({
+            level: defaultLogLevel,
+            colorize: true
+        })]
     });
 }
 
@@ -36,13 +64,7 @@ const defaultLogger = createLogger();
 /**
  * A phantom instance that communicates with phantomjs
  */
-export default class Phantom {
-    logger: Logger;
-    isNoOpInProgress: boolean;
-    commands: Map<number, Command>;
-    events: Map<string, EventEmitter>;
-    heartBeatId: number;
-    process: child_process$ChildProcess;
+class Phantom {
 
     /**
      * Creates a new instance of Phantom
@@ -52,20 +74,17 @@ export default class Phantom {
      * @param [logger] object containing functions used for logging
      * @param [logLevel] log level to apply on the logger (if unset or default)
      */
-    constructor(args?: string[] = [],
-        {phantomPath = phantomjs.path, logger = defaultLogger, logLevel = defaultLogLevel}: Config =
-        {
-            phantomPath: phantomjs.path,
-            logger: defaultLogger,
-            logLevel: defaultLogLevel,
-        }) {
+    constructor(args = [], { phantomPath = _phantomjsPrebuilt2.default.path, logger = defaultLogger, logLevel = defaultLogLevel } = {
+        phantomPath: _phantomjsPrebuilt2.default.path,
+        logger: defaultLogger,
+        logLevel: defaultLogLevel
+    }) {
         if (!Array.isArray(args)) {
             throw new Error('Unexpected type of parameters. Expecting args to be array.');
         }
 
         if (typeof phantomPath !== 'string') {
-            throw new Error('PhantomJS binary was not found. ' +
-                'This generally means something went wrong when installing phantomjs-prebuilt. Exiting.');
+            throw new Error('PhantomJS binary was not found. ' + 'This generally means something went wrong when installing phantomjs-prebuilt. Exiting.');
         }
 
         if (typeof logger !== 'object') {
@@ -84,16 +103,16 @@ export default class Phantom {
             this.logger.transports.console.level = logLevel;
         }
 
-        const pathToShim = path.normalize(__dirname + '/shim/index.js');
+        const pathToShim = _path2.default.normalize(__dirname + '/shim/index.js');
         this.logger.debug(`Starting ${phantomPath} ${args.concat([pathToShim]).join(' ')}`);
 
-        this.process = spawn(phantomPath, args.concat([pathToShim]), {env: process.env});
+        this.process = (0, _child_process.spawn)(phantomPath, args.concat([pathToShim]), { env: process.env });
         this.process.stdin.setDefaultEncoding('utf-8');
 
         this.commands = new Map();
         this.events = new Map();
 
-        this.process.stdout.pipe(split()).on('data', data => {
+        this.process.stdout.pipe((0, _split2.default)()).on('data', data => {
             const message = data.toString('utf8');
             if (message[0] === '>') {
                 // Server end has finished NOOP, lets allow NOOP again..
@@ -125,8 +144,6 @@ export default class Phantom {
                 } else {
                     this.logger.error('command not found for command.id: ' + parsedJson.id);
                 }
-
-
             } else if (message.indexOf('<event>') === 0) {
                 const json = message.substr(7);
                 this.logger.debug('Parsing: %s', json);
@@ -147,19 +164,18 @@ export default class Phantom {
             this._rejectAllCommands(`Phantom process stopped with exit code ${code}`);
         });
         this.process.on('error', error => {
-            this.logger.error(`Could not spawn [${phantomPath}] executable. ` +
-                'Please make sure phantomjs is installed correctly.');
+            this.logger.error(`Could not spawn [${phantomPath}] executable. ` + 'Please make sure phantomjs is installed correctly.');
             this.logger.error(error);
             this.kill(`Process got an error: ${error}`);
             process.exit(1);
         });
 
-        this.process.stdin.on('error', (e) => {
+        this.process.stdin.on('error', e => {
             this.logger.debug(`Child process received error ${e}, sending kill signal`);
             this.kill(`Error reading from stdin: ${e}`);
         });
 
-        this.process.stdout.on('error', (e) => {
+        this.process.stdout.on('error', e => {
             this.logger.debug(`Child process received error ${e}, sending kill signal`);
             this.kill(`Error reading from stdout: ${e}`);
         });
@@ -171,7 +187,7 @@ export default class Phantom {
      * Returns a value in the global space of phantom process
      * @returns {Promise}
      */
-    windowProperty(): Promise<mixed> {
+    windowProperty() {
         return this.execute('phantom', 'windowProperty', [].slice.call(arguments));
     }
 
@@ -179,17 +195,16 @@ export default class Phantom {
      * Returns a new instance of Promise which resolves to a {@link Page}.
      * @returns {Promise.<Page>}
      */
-    createPage(): Promise<Page> {
+    createPage() {
         const logger = this.logger;
-        return this.execute('phantom', 'createPage').then((response: Response) => {
-            let page = new Page(this, response.pageId);
+        return this.execute('phantom', 'createPage').then(response => {
+            let page = new _page2.default(this, response.pageId);
             if (typeof Proxy === 'function') {
                 page = new Proxy(page, {
-                    set: function(target, prop) {
-                        logger.warn(`Using page.${prop} = ...; is not supported. Use page.property('${prop}', ...) ` +
-                            'instead. See the README file for more examples of page#property.');
+                    set: function (target, prop) {
+                        logger.warn(`Using page.${prop} = ...; is not supported. Use page.property('${prop}', ...) ` + 'instead. See the README file for more examples of page#property.');
                         return false;
-                    },
+                    }
                 });
             }
             return page;
@@ -200,16 +215,16 @@ export default class Phantom {
      * Creates a special object that can be used for returning data back from PhantomJS
      * @returns {OutObject}
      */
-    createOutObject(): OutObject {
-        return new OutObject(this);
+    createOutObject() {
+        return new _out_object2.default(this);
     }
 
     /**
      * Used for creating a callback in phantomjs for content header and footer
      * @param obj
      */
-    callback(obj: Function): {transform: true, target: Function, method: 'callback', parent: 'phantom'} {
-        return {transform: true, target: obj, method: 'callback', parent: 'phantom'};
+    callback(obj) {
+        return { transform: true, target: obj, method: 'callback', parent: 'phantom' };
     }
 
     /**
@@ -217,7 +232,9 @@ export default class Phantom {
      * @param command the command to run
      * @returns {Promise}
      */
-    executeCommand(command: Command): Promise<Response> {
+    executeCommand(command) {
+        // console.log("Command To Execute")
+        // console.log(command);
         this.commands.set(command.id, command);
 
         let json = JSON.stringify(command, (key, val) => {
@@ -225,8 +242,7 @@ export default class Phantom {
                 return undefined;
             } else if (typeof val === 'function') {
                 if (!val.hasOwnProperty('prototype')) {
-                    this.logger.warn('Arrow functions such as () => {} are not supported in PhantomJS. ' +
-                        'Please use function(){} or compile to ES5.');
+                    this.logger.warn('Arrow functions such as () => {} are not supported in PhantomJS. ' + 'Please use function(){} or compile to ES5.');
                     throw new Error('Arrow functions such as () => {} are not supported in PhantomJS.');
                 }
                 return val.toString();
@@ -234,14 +250,14 @@ export default class Phantom {
             return val;
         });
 
-
         let promise = new Promise((res, rej) => {
-            command.deferred = {resolve: res, reject: rej};
+            command.deferred = { resolve: res, reject: rej };
         });
 
         this.logger.debug('Sending: %s', json);
-
-        this.process.stdin.write(json + os.EOL, 'utf8');
+        console.log("((((((((((((((((");
+        //console.log(json);
+        this.process.stdin.write(json + _os2.default.EOL, 'utf8');
 
         return promise;
     }
@@ -254,8 +270,8 @@ export default class Phantom {
      * @param args an array of args to pass to the method
      * @returns {Promise}
      */
-    execute(target: string, name: string, args: mixed[] = []): Promise<Response> {
-        return this.executeCommand(new Command(target, name, args));
+    execute(target, name, args = []) {
+        return this.executeCommand(new _command2.default(target, name, args));
     }
 
     /**
@@ -267,20 +283,36 @@ export default class Phantom {
      * @param callback the event callback
      * @param args an array of args to pass to the callback
      */
-    on(event: string, target: string, runOnPhantom: boolean, callback: Function, args: mixed[] = []) {
-        const eventDescriptor: {type: string, args?: mixed[], event?: Function} = {type: event};
+    on(event, target, runOnPhantom, callback, args = []) {
+        const eventDescriptor = { type: event };
 
         if (runOnPhantom) {
             eventDescriptor.event = callback;
             eventDescriptor.args = args;
         } else {
             const emitter = this.getEmitterForTarget(target);
-            emitter.on(event, function() {
+            emitter.on(event, function () {
                 let params = [].slice.call(arguments).concat(args);
                 return callback.apply(null, params);
             });
         }
         return this.execute(target, 'addEvent', [eventDescriptor]);
+    }
+
+    onEvent(event,eventName,target, runOnPhantom, callback, args = []) {
+        const eventDescriptor = { type: event };
+
+        if (runOnPhantom) {
+            eventDescriptor.event = callback;
+            eventDescriptor.args = args;
+        } else {
+            const emitter = this.getEmitterForTarget(target);
+            emitter.on(event, function () {
+                let params = [].slice.call(arguments).concat(args);
+                return callback.apply(null, params);
+            });
+        }
+        return this.execute(target, eventName, [eventDescriptor]);
     }
 
     /**
@@ -289,17 +321,17 @@ export default class Phantom {
      * @param event
      * @param target
      */
-    off(event: string, target: string): Promise<mixed> {
+    off(event, target) {
         const emitter = this.getEmitterForTarget(target);
         emitter.removeAllListeners(event);
-        return this.execute(target, 'removeEvent', [{type: event}]);
+        return this.execute(target, 'removeEvent', [{ type: event }]);
     }
 
-    getEmitterForTarget(target: string): EventEmitter {
+    getEmitterForTarget(target) {
         let emitter = this.events.get(target);
 
         if (emitter == null) {
-            emitter = new EventEmitter();
+            emitter = new _events2.default();
             this.events.set(target, emitter);
         }
 
@@ -309,7 +341,7 @@ export default class Phantom {
     /**
      * Cleans up and end the phantom process
      */
-    exit(): Promise<Response> {
+    exit() {
         clearInterval(this.heartBeatId);
         return this.execute('phantom', 'invokeMethod', ['exit']);
     }
@@ -317,23 +349,23 @@ export default class Phantom {
     /**
      * Clean up and force kill this process
      */
-    kill(errmsg: string = 'Phantom process was killed'): void {
+    kill(errmsg = 'Phantom process was killed') {
         this._rejectAllCommands(errmsg);
         this.process.kill('SIGKILL');
     }
 
-    _heartBeat(): void {
+    _heartBeat() {
         if (!this.isNoOpInProgress) {
             this.isNoOpInProgress = true;
             this.logger.debug('Sending NOOP command.');
-            this.process.stdin.write(NOOP + os.EOL, 'utf8');
+            this.process.stdin.write(NOOP + _os2.default.EOL, 'utf8');
         }
     }
 
     /**
      * rejects all commands in this.commands
      */
-    _rejectAllCommands(errmsg: string = 'Phantom exited prematurely'): void {
+    _rejectAllCommands(errmsg = 'Phantom exited prematurely') {
         // prevent heartbeat from preventing this from terminating
         clearInterval(this.heartBeatId);
         for (const command of this.commands.values()) {
@@ -343,3 +375,4 @@ export default class Phantom {
         }
     }
 }
+exports.default = Phantom;

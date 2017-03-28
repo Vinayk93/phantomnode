@@ -1,18 +1,13 @@
-// @flow
+"use strict";
 
-/**
- * A simple command class that gets deserialized when it is sent to phantom
- */
-let NEXT_ID:number = 1;
+Object.defineProperty(exports, "__esModule", {
+    value: true
+});
+let NEXT_ID = 1;
 
-export default class Command {
-    id: number;
-    target: string;
-    name: string;
-    params: mixed[];
-    deferred: ?{resolve: Function, reject: Function};
+class Command {
 
-    constructor(target: string, name: string, params: mixed[] = []) {
+    constructor(target, name, params = []) {
         this.id = NEXT_ID++;
         this.target = target;
         this.name = name;
@@ -20,3 +15,4 @@ export default class Command {
         this.deferred = null;
     }
 }
+exports.default = Command;
